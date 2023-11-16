@@ -35,10 +35,15 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css"
       type="text/css"
     />
+    
     <!-- Here you should use the script tag instead of the link tag for the JavaScript files -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
     <script src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script src="https://rawgit.com/eKoopmans/html2pdf/master/dist/html2pdf.bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.70/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.70/vfs_fonts.js"></script>    
     <script src="js/script.js"></script>
 
     <style>
@@ -177,6 +182,9 @@
     <div class="tabs">
       <div class="tab active" onclick="openTab(event, 'tab1')">My HOUSES</div>
       <div class="tab" onclick="openTab(event, 'tab2')">My ROOMS</div>
+      <div class="tab" onclick="openTab(event, 'tab3')">
+        Reservations Affected
+      </div>
     </div>
 
     <div id="tab1" class="tab-content active">
@@ -188,6 +196,7 @@
               <th scope="col">ADDRESS</th>
               <th scope="col">SIZE</th>
               <th scope="col">DELETE</th>
+              <th scope="col">MODIFY</th>
             </tr>
           </thead>
           <tbody id="houseDiv">
@@ -199,6 +208,7 @@
         </table>
       </div>
     </div>
+    <span id="houseEdit"></span>
 
     <div id="tab2" class="tab-content">
       <div class="table-responsive px-2" style="margin-top: 3%">
@@ -207,12 +217,38 @@
             <tr>
               <th scope="col">ROOM NAME</th>
               <th scope="col">PRICE</th>
+              <th scope="col">CAPACITY</th>
               <th scope="col">DELETE</th>
+              <th scope="col">MODIFY</th>
             </tr>
           </thead>
           <tbody id="roomDiv">
             <script>
               displayOwnerRooms();
+            </script>
+            <!-- Add other rows in a similar fashion -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <span id="roomEdit"></span>
+
+    <div id="tab3" class="tab-content">
+      <div class="table-responsive px-2" style="margin-top: 3%">
+        <table class="table table-borderless">
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">USER ID</th>
+              <th scope="col">userName</th>
+              <th scope="col">Room Name</th>
+              <th scope="col">Room Price</th>
+              <th scope="col">PDF</th>
+            </tr>
+          </thead>
+          <tbody id="storeOrdersDiv">
+            <script>
+              DisplayReservationAffected();
             </script>
             <!-- Add other rows in a similar fashion -->
           </tbody>
@@ -336,6 +372,23 @@
       </div>
     </div>
     <!-- Search model end -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Check if the user is an admin
+        var usersTab = JSON.parse(localStorage.getItem("users") || "[]");
+        var connectedUserId = localStorage.getItem("connectedUserId");
+
+        if (!isAdmin(connectedUserId, usersTab)) {
+          // Redirect to the login page
+          window.location.href = "index.html";
+        }
+
+        function isAdmin(userId, users) {
+          var user = users.find((user) => user.id == userId);
+          return user && user.role === "owner";
+        }
+      });
+    </script>
 
     <!-- Js Plugins -->
     <script src="js/jquery-3.3.1.min.js"></script>

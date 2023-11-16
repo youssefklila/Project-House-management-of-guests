@@ -245,6 +245,23 @@
       </div>
     </div>
     <!-- Search model end -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Check if the user is an admin
+        var usersTab = JSON.parse(localStorage.getItem("users") || "[]");
+        var connectedUserId = localStorage.getItem("connectedUserId");
+
+        if (!isAdmin(connectedUserId, usersTab)) {
+          // Redirect to the login page
+          window.location.href = "index.html";
+        }
+
+        function isAdmin(userId, users) {
+          var user = users.find((user) => user.id == userId);
+          return user && user.role === "owner" || "admin";
+        }
+      });
+    </script>
 
     <!-- Js Plugins -->
     <script src="js/jquery-3.3.1.min.js"></script>

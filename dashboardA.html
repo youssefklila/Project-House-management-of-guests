@@ -38,6 +38,7 @@
     <script src="js/owl.carousel.min.js"></script>
     <script src="js/main.js"></script>
     <script src="js/script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
       @import url("https://fonts.googleapis.com/css?family=Montserrat:400,700&display=swap");
@@ -170,6 +171,8 @@
       <div class="tab active" onclick="openTab(event, 'tab1')">USERS</div>
       <div class="tab" onclick="openTab(event, 'tab2')">HOUSES</div>
       <div class="tab" onclick="openTab(event, 'tab3')">ROOMS</div>
+      <div class="tab" onclick="openTab(event, 'tab4')">ORDERS</div>
+      <div class="tab" onclick="openTab(event, 'tab5')">STATISTICS</div>
     </div>
 
     <div id="tab1" class="tab-content active">
@@ -184,6 +187,7 @@
               <th scope="col">ROLE</th>
               <th scope="col">STATUS</th>
               <th scope="col">DELETE</th>
+              <th scope="col">VALIDATE</th>
               <th scope="col">MODIFY</th>
             </tr>
           </thead>
@@ -195,6 +199,7 @@
         </table>
       </div>
     </div>
+    <span id="profileEdit"></span>
 
     <div id="tab2" class="tab-content">
       <div class="table-responsive px-2" style="margin-top: 3%">
@@ -207,7 +212,6 @@
               <th scope="col">ADDRESS</th>
               <th scope="col">SIZE</th>
               <th scope="col">DELETE</th>
-              <th scope="col">MODIFY</th>
             </tr>
           </thead>
           <tbody id="housesAdminDiv">
@@ -240,6 +244,32 @@
       </div>
     </div>
 
+    <div id="tab4" class="tab-content">
+      <div class="table-responsive px-2" style="margin-top: 3%">
+        <table class="table table-borderless">
+          <thead>
+            <tr>
+              <th scope="col">First Name</th>
+              <th scope="col">House Name</th>
+              <th scope="col">ROOM Name</th>
+              <th scope="col">DELETE</th>
+            </tr>
+          </thead>
+          <tbody id="ordersDiv">
+            <script>
+              displayAllOrders();
+            </script>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab5" class="tab-content">
+      <div id="statisticsDiv" style="margin-top: 3%">
+        <canvas id="statisticsChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+
     <script>
       function openTab(evt, tabName) {
         var i, tabcontent, tablinks;
@@ -255,18 +285,7 @@
         evt.currentTarget.className += " active";
       }
     </script>
-    <!--TABLE USER-->
 
-    <!--END TABLE USER-->
-
-    <!--TABLE OWNER-->
-
-    <!--END TABLE OWNER-->
-
-    <!--TABLE HOUSES-->
-
-    <!--END TABLE HOUSES-->
-    <!-- Footer Section Begin -->
     <footer class="footer-section">
       <div class="container">
         <div class="footer-text">
@@ -344,9 +363,7 @@
         </div>
       </div>
     </footer>
-    <!-- Footer Section End -->
 
-    <!-- Search model Begin -->
     <div class="search-model">
       <div class="h-100 d-flex align-items-center justify-content-center">
         <div class="search-close-switch"><i class="icon_close"></i></div>
@@ -358,5 +375,22 @@
     <!-- Search model end -->
 
     <!-- Js Plugins -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Check if the user is an admin
+        var usersTab = JSON.parse(localStorage.getItem("users") || "[]");
+        var connectedUserId = localStorage.getItem("connectedUserId");
+
+        if (!isAdmin(connectedUserId, usersTab)) {
+          // Redirect to the login page
+          window.location.href = "index.html";
+        }
+
+        function isAdmin(userId, users) {
+          var user = users.find((user) => user.id == userId);
+          return user && user.role === "admin";
+        }
+      });
+    </script>
   </body>
 </html>

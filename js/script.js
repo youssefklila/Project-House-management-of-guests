@@ -332,9 +332,6 @@ function addHouse() {
     "AddressHouseError",
     "Address should have at least 6 characters"
   );
-  // Image handling
-  var HouseImage = document.getElementById("HouseImage");
-  var imageFile = HouseImage.files[0]; // Get the first selected file
 
   var SizeHouse = getValue("SizeHouse");
   var ServiceHouse = getValue("ServiceHouse");
@@ -343,60 +340,72 @@ function addHouse() {
     var housesTab = getFromLS("houses") || [];
     var connectedUserId = localStorage.getItem("connectedUserId");
 
-    // Create the house object with an empty array of rooms
-    var house = {
-      id: generateId(housesTab) + 1,
-      name: HouseName,
-      address: AddressHouse,
-      ownerId: connectedUserId,
-      size: SizeHouse,
-      service: ServiceHouse,
-      rooms: [], // Initialize an empty array for rooms
-    };
+    // Check the number of houses the user already has
+    var userHouses = housesTab.filter(
+      (house) => house.ownerId === connectedUserId
+    );
 
-    // Save into localStorage
-    housesTab.push(house);
-    localStorage.setItem("houses", JSON.stringify(housesTab));
+    if (userHouses.length < 4) {
+      // Create the house object with an empty array of rooms
+      var house = {
+        id: generateId(housesTab) + 1,
+        name: HouseName,
+        address: AddressHouse,
+        ownerId: connectedUserId,
+        size: SizeHouse,
+        service: ServiceHouse,
+        rooms: [], // Initialize an empty array for rooms
+      };
+
+      // Save into localStorage
+      housesTab.push(house);
+      localStorage.setItem("houses", JSON.stringify(housesTab));
+    } else {
+      alert("You can't add more than 4 houses.");
+    }
   }
 }
 //ajouter une chambre
 function addRoom() {
   var RoomName = getValue("RoomName");
   var isRoomNameValid = checkLength(RoomName, 6);
+
   checkCondition(
     isRoomNameValid,
     "RoomNameError",
     "Room should have at least 6 carac"
   );
   var PriceRoom = getValue("PriceRoom");
+  var SeatsRoom = getValue("SeatsRoom");
+  var fromDate = getValue("fromDate");
+  var toDate = getValue("toDate");
 
   if (isRoomNameValid) {
     var roomsTab = JSON.parse(localStorage.getItem("rooms") || "[]");
     var connectedUserId = localStorage.getItem("connectedUserId");
     var houseSelect = getValue("houseSelect");
 
-    // Creation of the object
     var room = {
       id: generateId(roomsTab) + 1,
       name: RoomName,
       price: PriceRoom,
       ownerId: connectedUserId,
       houseId: houseSelect,
+      seats: SeatsRoom,
+      from: fromDate,
+      to: toDate,
     };
 
-    // Save into local storage
     roomsTab.push(room);
     localStorage.setItem("rooms", JSON.stringify(roomsTab));
 
-    // Updating the corresponding house object with the room's id
     var housesTab = JSON.parse(localStorage.getItem("houses") || "[]");
     for (let i = 0; i < housesTab.length; i++) {
       if (housesTab[i].id == houseSelect) {
-        // Check if rooms array already exists, if not, initialize it as an empty array
         if (!housesTab[i].rooms) {
           housesTab[i].rooms = [];
         }
-        housesTab[i].rooms.push(room.id); // Push the new room id into the rooms array
+        housesTab[i].rooms.push(room.id);
         break;
       }
     }
@@ -440,9 +449,27 @@ function goToDisplayHouseId(id) {
 function deleteOrderByPos(id) {
   var ordersTab = getFromLS("orders");
   var pos = searchObjByPos(id, "orders");
-  ordersTab.splice(pos, 1);
-  localStorage.setItem("orders", JSON.stringify(ordersTab));
-  location.reload();
+
+  if (pos !== -1) {
+    // Retrieve the order details before deletion
+    var deletedOrder = ordersTab[pos];
+    var roomId = deletedOrder.roomId;
+    var seatsFreed = deletedOrder.seats;
+
+    // Delete the order
+    ordersTab.splice(pos, 1);
+    localStorage.setItem("orders", JSON.stringify(ordersTab));
+    location.reload();
+
+    // Update the corresponding room's available seats
+    var roomsTab = getFromLS("rooms");
+    var roomIndex = roomsTab.findIndex((room) => room.id === roomId);
+
+    if (roomIndex !== -1) {
+      roomsTab[roomIndex].seats += seatsFreed;
+      localStorage.setItem("rooms", JSON.stringify(roomsTab));
+    }
+  }
 }
 //afficher les rooms fel houseDetail.html
 function displayRooms() {
@@ -462,8 +489,29 @@ function displayRooms() {
             <tbody>
               <tr>
                 <td class="r-o">Price:</td>
-                <td>${rooms[i].price}</td> <!-- Display the price directly here -->
+                <td>${rooms[i].price}</td>
               </tr>
+              <td style="margin-top: 25px;"><div style="display: flex; align-items: center; margin-top: 10px;">
+              <label for="seatsInput${rooms[i].id}" style="margin-right: 10px;">Seats:</label>
+              <input type="number" id="seatsInput${rooms[i].id}" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; width: 50px;" min="1" max="${rooms[i].seats}" />
+              </div>
+              <div style="margin-top: 25px;">
+                  <label>Availability:</label>
+                  <div class="availability-dates">
+                    <div class="date-label">
+                      <label for="fromDate">From</label>
+                      <input type="date" id="fromDate" class="form-control" />
+                    </div>
+                    <div class="date-label">
+                      <label for="toDate">To</label>
+                      <input type="date" id="toDate" class="form-control" />
+                    </div>
+                  </div>
+                  <span id="AvailabilityRoomError"></span>
+                </div>
+              </td>
+
+              
             </tbody>
           </table>
           <a class="primary-btn" onclick="addToBasket(${rooms[i].id})">add to basket</a>
@@ -477,23 +525,65 @@ function displayRooms() {
   document.getElementById("roomsDiv").innerHTML = content;
 }
 function addToBasket(id) {
-  localStorage.setItem("displayedRoomId", id);
   var connectedUserId = localStorage.getItem("connectedUserId");
-  var displayedRoomId = localStorage.getItem("displayedRoomId");
   var displayedHouseId = localStorage.getItem("displayedHouseId");
   var ordersTab = JSON.parse(localStorage.getItem("orders") || "[]");
-  // Create the order object
-  var order = {
-    id: generateId(ordersTab) + 1,
-    userId: connectedUserId,
-    houseId: displayedHouseId,
-    roomId: displayedRoomId,
-  };
-  // Save into Local Storage
-  ordersTab.push(order);
-  localStorage.setItem("orders", JSON.stringify(ordersTab));
-  location.replace("basket.html"); // Redirect to the basket page
+
+  // Retrieve the selected room
+  var selectedRoom = JSON.parse(localStorage.getItem("rooms")).find(
+    (room) => room.id == id
+  );
+
+  // Retrieve the number of seats entered by the user
+  var seatsInputId = `seatsInput${id}`;
+  var seatsInputValue = parseInt(document.getElementById(seatsInputId).value);
+
+  // Retrieve the selected dates
+  var fromDate = document.getElementById("fromDate").value;
+  var toDate = document.getElementById("toDate").value;
+
+  // Check if the number of seats requested is valid
+  if (seatsInputValue > 0 && seatsInputValue <= selectedRoom.seats) {
+    // Check if the selected dates are within the room's availability
+    if (
+      isDateInRange(selectedRoom.from, selectedRoom.to, fromDate) &&
+      isDateInRange(selectedRoom.from, selectedRoom.to, toDate)
+    ) {
+      // Create the order object
+      var order = {
+        id: generateId(ordersTab) + 1,
+        userId: connectedUserId,
+        houseId: displayedHouseId,
+        roomId: id,
+        seats: seatsInputValue,
+        fromDate: fromDate,
+        toDate: toDate,
+      };
+
+      // Save into Local Storage
+      ordersTab.push(order);
+      localStorage.setItem("orders", JSON.stringify(ordersTab));
+      location.replace("basket.html"); // Redirect to the basket page
+    } else {
+      alert("Selected dates are not within the room's availability period.");
+    }
+  } else {
+    alert(
+      "Invalid number of seats. Please enter a number between 1 and " +
+        selectedRoom.seats +
+        "."
+    );
+  }
 }
+// Function to check if a date is within a range
+function isDateInRange(startDate, endDate, targetDate) {
+  startDate = new Date(startDate);
+  endDate = new Date(endDate);
+  targetDate = new Date(targetDate);
+
+  return targetDate >= startDate && targetDate <= endDate;
+}
+
 //AFFICHER LES ORDERS POUR LES CLIENTS
 function displayMyOrders() {
   var ordersTab = getFromLS("orders");
@@ -512,7 +602,7 @@ function displayMyOrders() {
     var firstName = user ? user.FirstName : "N/A";
     var houseName = house ? house.name : "N/A";
     var roomName = room ? room.name : "N/A";
-
+    var roomPrice = room ? room.price : "N/A";
     content += `
       <tr>
         <td>
@@ -523,6 +613,9 @@ function displayMyOrders() {
         </td>
         <td>
           <h5>${roomName}</h5>
+        </td>
+        <td>
+          <h5>${roomPrice}</h5>
         </td>
         <td><button class="btn btn-danger" onclick="deleteOrderByPos(${myOrders[i].id})">Delete</button></td>
       </tr>
@@ -549,8 +642,9 @@ function displayOwnerHouses() {
       <td><span class="bg-blight">${myHouses[i].name}</span></td>
       <td><span class="bg-bdark"></span>${myHouses[i].address}</td>
       <td><span class="bg-blight"></span>${myHouses[i].size}</td>
-      <td><span class="bg-blight"></span></td>
-    </tr>
+      <td><button class="btn btn-danger"onclick="deleteHouseByAdmin(${myHouses[i].id})"> Delete </button></td>
+      <td><button class="btn btn-warning"onclick="houseEdit(${myHouses[i].id})"> Modify </button></td>
+      </tr>
       `;
   }
   document.getElementById("houseDiv").innerHTML = content;
@@ -573,50 +667,119 @@ function displayOwnerRooms() {
       <tr>
       <td><span class="bg-blight">${myRooms[i].name}</span></td>
       <td><span class="bg-bdark">${myRooms[i].price}</span></td>
-      <td><td><button class="btn btn-danger"onclick=""> Delete </button></td></td>
-    </tr>
+      <td><span class="bg-bdark">${myRooms[i].seats}</span></td>
+      <td><button class="btn btn-danger"onclick="deleteRoomByAdmin(${myRooms[i].id})"> Delete </button></td>
+      <td><button class="btn btn-warning"onclick="roomEdit(${myRooms[i].id})"> Modify </button></td>
+      </tr>
       `;
   }
   document.getElementById("roomDiv").innerHTML = content;
 }
 //AFFICHER LES USERS DANS ADMIN DASHBOARD
-function displayAdminUsers() {
-  var usersTab = getFromLS("users");
+function displayRooms() {
+  var rooms = JSON.parse(localStorage.getItem("rooms") || "[]");
+  var displayedHouseId = localStorage.getItem("displayedHouseId");
   var content = "";
-  for (let i = 0; i < usersTab.length; i++) {
-    if (usersTab[i].role != "admin") {
-      if (usersTab[i].role == "owner" && usersTab[i].status == "NOK") {
-        content =
-          content +
-          `<tr>
-        <td><span class="bg-blight">${usersTab[i].id}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].FirstName}</span></td>
-        <td><span class="bg-blight">${usersTab[i].Phone}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].Email}</span></td>
-        <td><span class="bg-blight">${usersTab[i].role}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].status}</span></td>
-        <td><button class="btn btn-danger" onclick="deleteUserByAdmin(${usersTab[i].id})"> Delete </button></td>
-        <td><button class="btn btn-warning" onclick="validateStore(${usersTab[i].id})"> Update </button></td>
-        
-      </tr>`;
-      } else {
-        content =
-          content +
-          `
-        <tr>
-        <td><span class="bg-blight">${usersTab[i].id}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].FirstName}</span></td>
-        <td><span class="bg-blight">${usersTab[i].Phone}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].Email}</span></td>
-        <td><span class="bg-blight">${usersTab[i].role}</span></td>
-        <td><span class="bg-bdark">${usersTab[i].status}</span></td>
-        <td><button class="btn btn-danger" onclick="deleteUserByAdmin(${usersTab[i].id})"> Delete </button></td>
-      </tr>
-        `;
-      }
+
+  for (let i = 0; i < rooms.length; i++) {
+    if (rooms[i].houseId == displayedHouseId) {
+      content += `
+        <div class="col-lg-4 col-md-6">
+          <div class="room-item">
+            <img src="img/room/room-1.jpg" alt="" />
+            <div class="ri-text">
+              <h4>${rooms[i].name}</h4>
+              <p>Price: ${rooms[i].price}</p>
+              <div style="display: flex; align-items: center; margin-top: 10px;">
+                <label for="seatsInput${rooms[i].id}" style="margin-right: 10px;">Seats:</label>
+                <input type="number" id="seatsInput${rooms[i].id}" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; width: 50px;" min="1" max="${rooms[i].seats}" />
+              </div>
+              <div style="margin-top: 25px;">
+                <label>Availability:</label>
+                <div class="availability-dates">
+                  <div class="date-label">
+                    <label for="fromDate">From</label>
+                    <input type="date" id="fromDate" class="form-control" />
+                  </div>
+                  <div class="date-label">
+                    <label for="toDate">To</label>
+                    <input type="date" id="toDate" class="form-control" />
+                  </div>
+                </div>
+                <span id="AvailabilityRoomError"></span>
+              </div>
+              <a class="primary-btn" onclick="addToBasket(${rooms[i].id}, ${rooms[i].seats})">add to basket</a>
+            </div>
+          </div>
+        </div>`;
     }
   }
-  document.getElementById("usersDiv").innerHTML = content;
+  document.getElementById("roomsDiv").innerHTML = content;
+}
+
+function addToBasket(id, availableSeats) {
+  var connectedUserId = localStorage.getItem("connectedUserId");
+  var displayedHouseId = localStorage.getItem("displayedHouseId");
+  var ordersTab = JSON.parse(localStorage.getItem("orders") || "[]");
+
+  var selectedRoom = JSON.parse(localStorage.getItem("rooms")).find(
+    (room) => room.id == id
+  );
+
+  var seatsInputId = `seatsInput${id}`;
+  var seatsInputValue = parseInt(document.getElementById(seatsInputId).value);
+
+  var fromDate = document.getElementById("fromDate").value;
+  var toDate = document.getElementById("toDate").value;
+
+  if (seatsInputValue > 0 && seatsInputValue <= availableSeats) {
+    if (
+      isDateInRange(selectedRoom.from, selectedRoom.to, fromDate) &&
+      isDateInRange(selectedRoom.from, selectedRoom.to, toDate)
+    ) {
+      // Update the available seats in the room
+      selectedRoom.seats -= seatsInputValue;
+
+      // Create the order object
+      var order = {
+        id: generateId(ordersTab) + 1,
+        userId: connectedUserId,
+        houseId: displayedHouseId,
+        roomId: id,
+        seats: seatsInputValue,
+        fromDate: fromDate,
+        toDate: toDate,
+      };
+
+      ordersTab.push(order);
+      localStorage.setItem("orders", JSON.stringify(ordersTab));
+
+      // Update the room's information in localStorage
+      var roomsTab = JSON.parse(localStorage.getItem("rooms") || "[]");
+      var updatedRooms = roomsTab.map((room) =>
+        room.id === selectedRoom.id ? selectedRoom : room
+      );
+      localStorage.setItem("rooms", JSON.stringify(updatedRooms));
+
+      location.replace("basket.html");
+    } else {
+      alert("Selected dates are not within the room's availability period.");
+    }
+  } else {
+    alert(
+      "Invalid number of seats. Please enter a number between 1 and " +
+        availableSeats +
+        "."
+    );
+  }
+}
+
+function isDateInRange(startDate, endDate, targetDate) {
+  startDate = new Date(startDate);
+  endDate = new Date(endDate);
+  targetDate = new Date(targetDate);
+
+  return targetDate >= startDate && targetDate <= endDate;
 }
 //supprimer un user par l'admin
 function deleteUserByAdmin(id) {
@@ -641,7 +804,6 @@ function displayAdminHouses() {
     <td><span class="bg-bdark">${productsHouses[i].address}</span></td>
     <td><span class="bg-blight">${productsHouses[i].size}</span></td>
     <td><button class="btn btn-danger"onclick="deleteHouseByAdmin(${productsHouses[i].id})"> Delete </button></td>
-    <td><button class="btn btn-warning"> Validate </button></td>
   </tr>
     `;
   }
@@ -679,6 +841,82 @@ function displayAdminRooms() {
       `;
   }
   document.getElementById("roomsAdminDiv").innerHTML = content;
+}
+function displayAdminUsers() {
+  var usersTab = getFromLS("users");
+  var content = "";
+  for (let i = 0; i < usersTab.length; i++) {
+    if (usersTab[i].role != "admin") {
+      if (usersTab[i].role == "owner" && usersTab[i].status == "NOK") {
+        content =
+          content +
+          `<tr>
+        <td><span class="bg-blight">${usersTab[i].id}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].FirstName}</span></td>
+        <td><span class="bg-blight">${usersTab[i].Phone}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].Email}</span></td>
+        <td><span class="bg-blight">${usersTab[i].role}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].status}</span></td>
+        <td><button class="btn btn-danger" onclick="deleteUserByAdmin(${usersTab[i].id})"> Delete </button></td>
+        <td><button class="btn btn-warning" onclick="validateStore(${usersTab[i].id})"> Update </button></td>
+        <td><button class="btn btn-warning" onclick="editByAdmin(${usersTab[i].id})"> Modify </button></td>
+        
+      </tr>`;
+      } else {
+        content =
+          content +
+          `
+        <tr>
+        <td><span class="bg-blight">${usersTab[i].id}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].FirstName}</span></td>
+        <td><span class="bg-blight">${usersTab[i].Phone}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].Email}</span></td>
+        <td><span class="bg-blight">${usersTab[i].role}</span></td>
+        <td><span class="bg-bdark">${usersTab[i].status}</span></td>
+        <td><button class="btn btn-danger" onclick="deleteUserByAdmin(${usersTab[i].id})"> Delete </button></td>
+        <td></td>
+        <td><button class="btn btn-warning" onclick="editByAdmin(${usersTab[i].id})"> Modify </button></td>
+        </tr>
+        `;
+      }
+    }
+  }
+  document.getElementById("usersDiv").innerHTML = content;
+}
+//edit Profile admin
+function editByAdmin(id) {
+  var connectedUserId = localStorage.getItem("connectedUserId");
+  var form = `
+  <div class="col-lg-7 offset-lg-1" style="margin-bottom: 10%">
+      <div action="#" class="contact-form">
+        <div class="row">
+          <div class="col-lg-6">
+            <input type="text" id="newName" placeholder="Your First Name" />
+          </div>
+          <div class="col-lg-6">
+            <input type="text" id="newEmail" placeholder="Your Email" />
+          </div>
+          <div class="col-lg-12">
+            <button
+              onclick="validateEditProfile(${id})"
+              style="
+                padding: 10px 20px;
+                background-color: #e0b444d5;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+              "
+            >
+              Validate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("profileEdit").innerHTML = form;
 }
 //supprimer room
 function deleteRoomByAdmin(id) {
@@ -763,39 +1001,6 @@ function generateHeader() {
   if (connectedUserId) {
     if (connectedUser.role == "client") {
       content = `      
-      <div class="top-nav">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-6">
-            <ul class="tn-left">
-              <li><i class="fa fa-phone"></i> (12) 345 67890</li>
-              <li><i class="fa fa-envelope"></i> info.colorlib@gmail.com</li>
-            </ul>
-          </div>
-          <div class="col-lg-6">
-            <div class="tn-right">
-              <div class="top-social">
-                <a href="#"><i class="fa fa-facebook"></i></a>
-                <a href="#"><i class="fa fa-twitter"></i></a>
-                <a href="#"><i class="fa fa-tripadvisor"></i></a>
-                <a href="#"><i class="fa fa-instagram"></i></a>
-              </div>
-              <a href="#" class="bk-btn">Booking Now</a>
-              <div class="language-option">
-                <img src="img/flag.jpg" alt="" />
-                <span>EN <i class="fa fa-angle-down"></i></span>
-                <div class="flag-dropdown">
-                  <ul>
-                    <li><a href="#">Zi</a></li>
-                    <li><a href="#">Fr</a></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="menu-item">
       <div class="container">
         <div class="row">
@@ -814,6 +1019,7 @@ function generateHeader() {
                   <li><a href="./houses.html">Houses</a></li>
                   <li><a href="./basket.html">Basket</a></li>
                   <li><a href="./profile.html">Profile</a></li>
+                  <li><a href="./search.html">Search</a></li>
                   <li><a href="./login.html" onclick="logOut()">Logout</a></li>
                 </ul>
               </nav>
@@ -825,39 +1031,6 @@ function generateHeader() {
       `;
     } else if (connectedUser.role == "owner") {
       content = `
-      <div class="top-nav">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-6">
-            <ul class="tn-left">
-              <li><i class="fa fa-phone"></i> (12) 345 67890</li>
-              <li><i class="fa fa-envelope"></i> info.colorlib@gmail.com</li>
-            </ul>
-          </div>
-          <div class="col-lg-6">
-            <div class="tn-right">
-              <div class="top-social">
-                <a href="#"><i class="fa fa-facebook"></i></a>
-                <a href="#"><i class="fa fa-twitter"></i></a>
-                <a href="#"><i class="fa fa-tripadvisor"></i></a>
-                <a href="#"><i class="fa fa-instagram"></i></a>
-              </div>
-              <a href="#" class="bk-btn">Booking Now</a>
-              <div class="language-option">
-                <img src="img/flag.jpg" alt="" />
-                <span>EN <i class="fa fa-angle-down"></i></span>
-                <div class="flag-dropdown">
-                  <ul>
-                    <li><a href="#">Zi</a></li>
-                    <li><a href="#">Fr</a></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="menu-item">
       <div class="container">
         <div class="row">
@@ -892,39 +1065,6 @@ function generateHeader() {
     `;
     } else {
       content = `
-      <div class="top-nav">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-6">
-            <ul class="tn-left">
-              <li><i class="fa fa-phone"></i> (12) 345 67890</li>
-              <li><i class="fa fa-envelope"></i> info.colorlib@gmail.com</li>
-            </ul>
-          </div>
-          <div class="col-lg-6">
-            <div class="tn-right">
-              <div class="top-social">
-                <a href="#"><i class="fa fa-facebook"></i></a>
-                <a href="#"><i class="fa fa-twitter"></i></a>
-                <a href="#"><i class="fa fa-tripadvisor"></i></a>
-                <a href="#"><i class="fa fa-instagram"></i></a>
-              </div>
-              <a href="#" class="bk-btn">Booking Now</a>
-              <div class="language-option">
-                <img src="img/flag.jpg" alt="" />
-                <span>EN <i class="fa fa-angle-down"></i></span>
-                <div class="flag-dropdown">
-                  <ul>
-                    <li><a href="#">Zi</a></li>
-                    <li><a href="#">Fr</a></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="menu-item">
       <div class="container">
         <div class="row">
@@ -958,46 +1098,25 @@ function generateHeader() {
     }
   } else {
     content = `
-    <div class="top-nav">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-6">
-                <ul class="tn-left">
-                    <li><i class="fa fa-phone"></i> (12) 345 67890</li>
-                    <li><i class="fa fa-envelope"></i> info.colorlib@gmail.com</li>
-                </ul>
-            </div>
-            <div class="col-lg-6">
-                <div class="tn-right">
-                    <div class="top-social">
-                        <a href="#"><i class="fa fa-facebook"></i></a>
-                        <a href="#"><i class="fa fa-twitter"></i></a>
-                        <a href="#"><i class="fa fa-tripadvisor"></i></a>
-                        <a href="#"><i class="fa fa-instagram"></i></a>
-                    </div>
-                    <a href="#" class="bk-btn">Booking Now</a>
-                    <div class="language-option">
-                        <img src="img/flag.jpg" alt="">
-                        <span>EN <i class="fa fa-angle-down"></i></span>
-                        <div class="flag-dropdown">
-                            <ul>
-                                <li><a href="#">Zi</a></li>
-                                <li><a href="#">Fr</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    <style>
+    .menu-item .row {
+        display: flex;
+        align-items: center;
+    }
+
+    .logo img {
+        width: 100px; /* Adjust the width as needed */
+        height: 28px; /* This ensures the aspect ratio is maintained */
+    }
+</style>
+
 <div class="menu-item">
     <div class="container">
         <div class="row">
             <div class="col-lg-2">
                 <div class="logo">
                     <a href="./index.html">
-                        <img src="img/logo.png" alt="">
+                    <img src="img/logo.png" alt="" >
                     </a>
                 </div>
             </div>
@@ -1054,7 +1173,6 @@ function validateStore(id) {
   localStorage.setItem("users", JSON.stringify(usersTab));
   location.reload();
 }
-
 function searchProduct() {
   var houseS = document.getElementById("SearchHouse").value;
   var houses = getFromLS("houses");
@@ -1065,7 +1183,7 @@ function searchProduct() {
       findedHouse.push(houses[i]);
     }
   }
-  for (let i = 0; i < houses.length; i++) {
+  for (let i = 0; i < findedHouse.length; i++) {
     content =
       content +
       `
@@ -1091,3 +1209,298 @@ function searchProduct() {
   }
   document.getElementById("searchDiv").innerHTML = content;
 }
+function DisplayReservationAffected() {
+  var rooms = getFromLS("rooms");
+  var myRooms = [];
+  var myOrders = [];
+  var content = "";
+  var orders = getFromLS("orders");
+  var connectedUserId = localStorage.getItem("connectedUserId");
+
+  for (let i = 0; i < rooms.length; i++) {
+    if (rooms[i].ownerId == connectedUserId) {
+      myRooms.push(rooms[i]);
+    }
+  }
+
+  for (let i = 0; i < myRooms.length; i++) {
+    for (let j = 0; j < orders.length; j++) {
+      if (myRooms[i].id == orders[j].roomId) {
+        myOrders.push(orders[j]);
+      }
+    }
+  }
+
+  for (let i = 0; i < myOrders.length; i++) {
+    content =
+      content +
+      `
+      <tr>
+      <td><span class="bg-blight">${myOrders[i].id}</span></td>
+      <td><span class="bg-blight">${
+        searchObjByIdAndKey(myOrders[i].userId, "users").id
+      }</span></td>
+      <td><span class="bg-blight">${
+        searchObjByIdAndKey(myOrders[i].userId, "users").FirstName
+      }</span></td>
+      <td><span class="bg-blight">${
+        searchObjByIdAndKey(myOrders[i].roomId, "rooms").name
+      }</span></td>
+      <td><span class="bg-blight">${
+        searchObjByIdAndKey(myOrders[i].roomId, "rooms").price
+      }</span></td>
+      <td><button onclick="generatePDF()" class="btn btn-warning">Imprimer</button></td>
+      </tr>
+      `;
+  }
+  document.getElementById("storeOrdersDiv").innerHTML = content;
+}
+function roomEdit(id) {
+  var form = `
+  <div class="col-lg-7 offset-lg-1" style="margin-bottom: 10%">
+      <div action="#" class="contact-form">
+        <div class="row">
+          <div class="col-lg-6">
+            <input type="text" id="newNameRoom" placeholder="New Room Name" />
+          </div>
+          <div class="col-lg-6">
+            <input type="text" id="newRoomPrice" placeholder="New Room Price " />
+          </div>
+          <div class="col-lg-6">
+          <input type="text" id="newRoomCapacity" placeholder="New Room Capacity " />
+        </div>
+          <div class="col-lg-12">
+            <button
+              onclick="validateEditRoom(${id})"
+              style="
+                padding: 10px 20px;
+                background-color: #e0b444d5;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+              "
+            >
+              Validate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("roomEdit").innerHTML = form;
+}
+function validateEditRoom(idRoom) {
+  var newNameRoom = document.getElementById("newNameRoom").value;
+  var newRoomPrice = document.getElementById("newRoomPrice").value;
+  var newRoomCapacity = document.getElementById("newRoomCapacity").value;
+  var rooms = getFromLS("rooms");
+  for (let i = 0; i < rooms.length; i++) {
+    if (rooms[i].id == idRoom) {
+      rooms[i].name = newNameRoom;
+      rooms[i].price = newRoomPrice;
+      rooms[i].seats = newRoomCapacity;
+      break;
+    }
+  }
+  localStorage.setItem("rooms", JSON.stringify(rooms));
+  location.reload();
+}
+function houseEdit(id) {
+  var form = `
+  <div class="col-lg-7 offset-lg-1" style="margin-bottom: 10%">
+      <div action="#" class="contact-form">
+        <div class="row">
+          <div class="col-lg-6">
+            <input type="text" id="newNameHouse" placeholder="New House Name" />
+          </div>
+          <div class="col-lg-6">
+            <input type="text" id="newHouseAddress" placeholder="New House Address " />
+          </div>
+          <div class="col-lg-6">
+          <input type="text" id="newHouseSize" placeholder="New House Size " />
+        </div>
+          <div class="col-lg-12">
+            <button
+              onclick="validateEditHouse(${id})"
+              style="
+                padding: 10px 20px;
+                background-color: #e0b444d5;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+              "
+            >
+              Validate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("houseEdit").innerHTML = form;
+}
+function validateEditHouse(idHouse) {
+  var newNameHouse = document.getElementById("newNameHouse").value;
+  var newHouseAddress = document.getElementById("newHouseAddress").value;
+  var newHouseSize = document.getElementById("newHouseSize").value;
+  var houses = getFromLS("houses");
+  for (let i = 0; i < houses.length; i++) {
+    if (houses[i].id == idHouse) {
+      houses[i].name = newNameHouse;
+      houses[i].address = newHouseAddress;
+      houses[i].size = newHouseSize;
+      break;
+    }
+  }
+  localStorage.setItem("houses", JSON.stringify(houses));
+  location.reload();
+}
+function displayAllOrders() {
+  var ordersTab = getFromLS("orders");
+  var connectedUserId = localStorage.getItem("connectedUserId");
+  var myOrders = [];
+  for (let i = 0; i < ordersTab.length; i++) {
+    myOrders.push(ordersTab[i]);
+  }
+  var content = ``;
+  for (let i = 0; i < myOrders.length; i++) {
+    var user = searchObjByIdAndKey(myOrders[i].userId, "users");
+    var house = searchObjByIdAndKey(myOrders[i].houseId, "houses");
+    var room = searchObjByIdAndKey(myOrders[i].roomId, "rooms");
+    var firstName = user ? user.FirstName : "N/A";
+    var houseName = house ? house.name : "N/A";
+    var roomName = room ? room.name : "N/A";
+
+    content += `
+      <tr>
+        <td>
+          <h5>${firstName}</h5>
+        </td>
+        <td>
+          <h5>${houseName}</h5>
+        </td>
+        <td>
+          <h5>${roomName}</h5>
+        </td>
+        <td><button class="btn btn-danger" onclick="deleteOrderByPos(${myOrders[i].id})">Delete</button></td>
+      </tr>
+      `;
+  }
+  document.getElementById("ordersDiv").innerHTML = content;
+}
+// Add this function in script.js
+document.addEventListener("DOMContentLoaded", function () {
+  function displayStatistics() {
+    var usersTab = JSON.parse(localStorage.getItem("users") || "[]");
+    var clientsCount = 0;
+    var ownersCount = 0;
+
+    for (let i = 0; i < usersTab.length; i++) {
+      if (usersTab[i].role === "client") {
+        clientsCount++;
+      } else if (usersTab[i].role === "owner") {
+        ownersCount++;
+      }
+    }
+
+    // Display statistics using a bar chart
+    var statisticsCanvas = document.getElementById("statisticsChart");
+    if (statisticsCanvas) {
+      var ctx = statisticsCanvas.getContext("2d");
+
+      var myChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Clients", "Owners"],
+          datasets: [
+            {
+              label: "Number of Users",
+              data: [clientsCount, ownersCount],
+              backgroundColor: [
+                "rgba(75, 192, 192, 0.2)",
+                "rgba(255, 99, 132, 0.2)",
+              ],
+              borderColor: ["rgba(75, 192, 192, 1)", "rgba(255, 99, 132, 1)"],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  var tab5 = document.getElementById("tab5");
+  if (tab5) {
+    tab5.addEventListener("click", function () {
+      displayStatistics();
+    });
+  }
+});
+function generatePDF() {
+  console.log("Inside generatePDF function");
+
+  // Create an array to store the table data
+  var tableData = [["ID", "USER ID", "User Name", "Room Name", "Room Price"]];
+
+  // Get the table rows from the storeOrdersDiv
+  var tableRows = document.getElementById("storeOrdersDiv").getElementsByTagName("tr");
+
+  console.log("Number of rows:", tableRows.length);
+
+  // Loop through the table rows and extract data
+  for (var i = 0; i < tableRows.length; i++) {
+    var rowData = [];
+    var cells = tableRows[i].getElementsByTagName("td");
+
+    // Loop through the cells in each row and push the text content to rowData
+    for (var j = 0; j < cells.length - 1; j++) {
+      rowData.push(cells[j].innerText);
+    }
+
+    console.log("Row data:", rowData);
+
+    // Push rowData to tableData
+    tableData.push(rowData);
+  }
+
+  console.log("Table data:", tableData);
+
+  // Create a definition for the document content
+  var docDefinition = {
+    content: [
+      { text: "Reservations Affected", style: "header" },
+      {
+        table: {
+          headerRows: 1,
+          body: tableData,
+        },
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+      },
+    },
+  };
+
+  // Use pdfmake to generate the PDF
+  pdfMake.createPdf(docDefinition).download("reservations_affected.pdf");
+}
+
+
+
+
+
